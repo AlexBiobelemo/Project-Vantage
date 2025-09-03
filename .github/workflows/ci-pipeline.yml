@@ -1,67 +1,40 @@
-import pytest
-import requests
+# This is the name of the workflow that will appear in the "Actions" tab of your GitHub repository.
+name: Python Application CI
 
-# To serch for modules in the "src" folder
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+# This section defines when the workflow should be triggered.
+on:
+  # Run this workflow on every push to the "main" branch.
+  push:
+    branches: [ "main" ]
+  # Also run this workflow on any pull request that targets the "main" branch.
+  pull_request:
+    branches: [ "main" ]
 
-import api_client
-from models import VPNNode
+# A workflow is composed of one or more "jobs" that can run in sequence or in parallel.
+jobs:
+  # This workflow has a single job called "build".
+  build:
+    # This job will run on a virtual machine with the latest version of Ubuntu Linux.
+    runs-on: ubuntu-latest
 
-# Tests
+    # "steps" are the sequence of tasks that will be executed as part of the job.
+    steps:
+      # Step 1: Checks out your repository's code onto the runner, allowing the job to access it.
+      - name: Check out repository code
+        uses: actions/checkout@v3
 
-def test_fetch_nodes_success(requests_mock):
-    """Tests the successful fetching and parsing of nodes from the API."""
-    mock_url = api_client.API_URL
-    mock_data = [
-        {"id": "us-1", "name": "Eagle Server", "country": "United States", "latency_ms": 54, "ip_address": "104.26.10.188"},
-        {"id": "ca-1", "name": "Maple Leaf", "country": "Canada", "latency_ms": 72, "ip_address": "142.126.146.1"}
-    ]
-    requests_mock.get(mock_url, json=mock_data, status_code=200)
+      # Step 2: Sets up a specific version of Python on the runner.
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
-    nodes = api_client.fetch_nodes()
-
-    assert len(nodes) == 2
-    assert isinstance(nodes[0], VPNNode)
-    assert nodes[0].name == "Eagle Server"
-
-def test_fetch_nodes_connection_error(requests_mock):
-    """Tests that the function returns an empty list when the API fails to connect."""
-    mock_url = api_client.API_URL
-    requests_mock.get(mock_url, exc=requests.exceptions.ConnectionError)
-
-    nodes = api_client.fetch_nodes()
-
-    assert nodes == []
-
-def test_fetch_nodes_server_error(requests_mock):
-    """Tests that the function returns an empty list on a 500 server error."""
-    mock_url = api_client.API_URL
-    requests_mock.get(mock_url, status_code=500, reason="Internal Server Error")
-
-    nodes = api_client.fetch_nodes()
-
-    assert nodes == []
-
-def test_fetch_nodes_returns_empty_list(requests_mock):
-    """Tests that the function correctly handles a valid but empty list from the API."""
-    mock_url = api_client.API_URL
-    requests_mock.get(mock_url, json=[], status_code=200)
-
-    nodes = api_client.fetch_nodes()
-
-    assert nodes == []
-
-def test_fetch_nodes_malformed_data(requests_mock):
-    """Tests that the function raises a TypeError if the data is missing a required key."""
-    mock_url = api_client.API_URL
-    # This entry is missing the 'latency_ms' key
-    malformed_data = [
-        {"id": "us-1", "name": "Eagle Server", "country": "United States", "ip_address": "104.26.10.188"}
-    ]
-    requests_mock.get(mock_url, json=malformed_data, status_code=200)
-
-    # Use pytest.raises to assert that a specific exception is raised.
-    with pytest.raises(TypeError):
-        api_client.fetch_nodes()
+      # Step 3: Installs the project's dependencies from your requirements.txt file.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      # Step 4: Runs your test suite using the pytest command. If any test fails, this step will fail, and the workflow run will be marked as a failure.
+      - name: Run tests with pytest
+        run: pytest
